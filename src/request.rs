@@ -46,6 +46,9 @@ impl<'a> io::Write for Request<'a> {
     fn flush(&mut self) -> io::Result<()> {
         self.stream.flush()
     }
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+        self.stream.write_all(buf)
+    }
 }
 
 impl<'a> TryFrom<TcpStream> for Request<'a> {
