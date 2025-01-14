@@ -139,6 +139,7 @@ impl fmt::Display for Status {
         match self {
             Self::OK => write!(f, "{} OK", value),
             Self::NotFound => write!(f, "{} Not Found", value),
+            Self::Created => write!(f, "{} Created", value),
             _ => todo!(),
         }
     }

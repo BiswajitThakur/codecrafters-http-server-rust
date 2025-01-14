@@ -1,9 +1,9 @@
 use std::{
     collections::HashMap,
     fs,
-    io::{self, BufReader, Cursor, ErrorKind},
+    io::{self, BufReader, BufWriter, Cursor, ErrorKind, Read, Write},
     net::{TcpListener, TcpStream},
-    path::{Path, PathBuf},
+    path::PathBuf,
     thread,
 };
 
@@ -26,7 +26,7 @@ fn main() -> io::Result<()> {
 }
 
 fn handler(stream: TcpStream) -> io::Result<()> {
-    let req = Request::try_from(stream)?;
+    let mut req = Request::try_from(stream)?;
     match (req.method, req.target.clone().as_ref()) {
         (Method::Get, v) => {
             let paths: Vec<&str> = v.split('/').filter(|v| !v.is_empty()).collect();
@@ -76,6 +76,39 @@ fn handler(stream: TcpStream) -> io::Result<()> {
                 _ => {
                     default_res().send_to(req)?;
                 }
+            }
+        }
+        (Method::Post, v) => {
+            let paths: Vec<&str> = v.split('/').filter(|v| !v.is_empty()).collect();
+            match paths[0] {
+                "files" => {
+                    let args: Vec<String> = std::env::args().collect();
+                    let args = parse_args(args);
+                    let path: PathBuf = (&paths[1..]).iter().collect();
+                    let path: PathBuf = [PathBuf::from(args.get("--directory").unwrap()), path]
+                        .iter()
+                        .collect();
+                    if let Some(parent) = path.parent() {
+                        fs::create_dir_all(parent)?;
+                    }
+                    let file = fs::File::create_new(path)?;
+                    let mut writer = BufWriter::new(file);
+                    let len: usize = req.get("Content-Length").unwrap().parse().unwrap();
+                    let mut buffer = [0; 1024];
+                    let mut total = 0;
+                    loop {
+                        let n = req.read(&mut buffer)?;
+                        writer.write_all(&buffer[0..n])?;
+                        total += n;
+                        if total >= len {
+                            break;
+                        }
+                    }
+                    Response::<Cursor<&str>>::default()
+                        .status(Status::Created)
+                        .send_to(req)?;
+                }
+                _ => {}
             }
         }
         _ => {}

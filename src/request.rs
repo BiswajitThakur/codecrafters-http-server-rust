@@ -60,7 +60,7 @@ impl<'a> TryFrom<TcpStream> for Request<'a> {
         let mut target: Cow<'_, str> = Cow::default();
         let mut version = (0, 0, 0);
         let mut value = String::new();
-        let mut buffer = [0; 1024];
+        let mut buffer = [0; 1];
         loop {
             let r = stream.read(&mut buffer)?;
             value.push_str(unsafe { std::str::from_utf8_unchecked(&buffer[0..r]) });
