@@ -10,7 +10,7 @@ pub struct Response<'a, T: io::Read> {
     _version: (u8, u8, u8),
     _status: Status,
     _content_type: Cow<'a, str>,
-    _content_length: usize,
+    _content_length: u64,
     _headers: HashMap<Cow<'a, str>, Cow<'a, str>>,
     _body: Option<T>,
 }
@@ -47,7 +47,7 @@ impl<'a, T: io::Read> Response<'a, T> {
             ..self
         }
     }
-    pub fn content_length(self, length: usize) -> Self {
+    pub fn content_length(self, length: u64) -> Self {
         Self {
             _content_length: length,
             ..self
