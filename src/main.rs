@@ -1,5 +1,5 @@
 use std::{
-    io::{self, Cursor, Write},
+    io::{self, Cursor},
     net::TcpListener,
 };
 
@@ -13,22 +13,31 @@ fn main() -> io::Result<()> {
             Ok(stream) => {
                 let req = Request::try_from(stream)?;
                 match (req.method, req.target.clone().as_ref()) {
-                    (Method::Get, "/") => Response::<Cursor<&str>>::default()
-                        .status(Status::OK)
-                        .send_to(req)?,
                     (Method::Get, v) => {
-                        let value = v.strip_prefix("/echo/");
-                        if let Some(val) = value {
-                            let mut res = Response::<Cursor<&str>>::default()
+                        let paths: Vec<&str> = v.split('/').filter(|v| !v.is_empty()).collect();
+                        if paths.is_empty() {
+                            return default_res().status(Status::OK).send_to(req);
+                        }
+                        match paths[0] {
+                            "echo" => default_res()
                                 .status(Status::OK)
                                 .content_type("text/plain")
-                                .content_length(val.len())
-                                .body(Cursor::new(val));
-                            res.send_to(req)?;
-                        } else {
-                            Response::<Cursor<&str>>::default()
-                                .status(Status::NotFound)
-                                .send_to(req)?;
+                                .content_length(paths[1].len())
+                                .body(Cursor::new(paths[1]))
+                                .send_to(req)?,
+                            "user-agent" => {
+                                let body = req.get("User-Agent").unwrap().clone();
+                                let body = body.as_ref();
+                                default_res()
+                                    .status(Status::OK)
+                                    .content_type("text/plain")
+                                    .content_length(body.len())
+                                    .body(Cursor::new(body))
+                                    .send_to(req)?;
+                            }
+                            _ => {
+                                default_res().send_to(req)?;
+                            }
                         }
                     }
                     _ => {}
@@ -40,4 +49,8 @@ fn main() -> io::Result<()> {
         }
     }
     Ok(())
+}
+
+fn default_res<'a>() -> Response<'a, Cursor<&'a str>> {
+    Response::<Cursor<&str>>::default()
 }
