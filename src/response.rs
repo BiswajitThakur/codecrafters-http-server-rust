@@ -1,10 +1,11 @@
 use std::{
     borrow::Cow,
     collections::HashMap,
-    io::{self, Write},
+    io::{self, Cursor, Read, Write},
+    str::FromStr,
 };
 
-use crate::{Request, Status};
+use crate::{Encoding, Request, Status};
 
 pub struct Response<'a, T: io::Read> {
     _version: (u8, u8, u8),
@@ -65,7 +66,7 @@ impl<'a, T: io::Read> Response<'a, T> {
             ..self
         }
     }
-    pub fn send_to(&mut self, mut stream: Request<'_>) -> io::Result<()> {
+    pub fn send_to(mut self, mut stream: Request<'_>) -> io::Result<()> {
         match self._version {
             (1, 1, 0) => {
                 stream.write_all(b"HTTP/1.1 ")?;
@@ -74,19 +75,33 @@ impl<'a, T: io::Read> Response<'a, T> {
             }
             _ => {}
         }
+        let accept_encoding = match stream.get("Accept-Encoding") {
+            Some(v) => v.as_ref(),
+            None => "",
+        };
+        let encoding = Encoding::from_str(accept_encoding).unwrap_or_default();
+        let mut w: Vec<u8> = Vec::new();
+        match self._body.take() {
+            Some(body) => encoding.encode(&mut w, body)?,
+            _ => {}
+        };
+        match encoding {
+            Encoding::Gzip => write!(stream, "Content-Encoding: gzip\r\n")?,
+            _ => {}
+        };
+        write!(stream, "Content-Length: {}\r\n", w.len())?;
         write!(stream, "Content-Type: {}\r\n", self._content_type)?;
-        write!(stream, "Content-Length: {}\r\n", self._content_length)?;
         stream.write_all(b"\r\n")?;
+        let mut cursor = Cursor::new(w);
         let mut buffer = [0; 1024];
-        if let Some(v) = self._body.as_mut() {
-            loop {
-                let v = v.read(&mut buffer)?;
-                if v == 0 {
-                    break;
-                }
-                stream.write_all(&buffer[0..v])?;
+        loop {
+            let n = cursor.read(&mut buffer)?;
+            if n == 0 {
+                break;
             }
+            stream.write_all(&buffer[0..n])?;
         }
+        stream.flush()?;
         Ok(())
     }
 }
