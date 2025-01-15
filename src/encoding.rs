@@ -20,10 +20,16 @@ impl Default for Encoding {
 impl FromStr for Encoding {
     type Err = io::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.trim() {
+        let f = |v| match v {
             "gzip" => Ok(Self::Gzip),
             _ => Err(io::Error::new(ErrorKind::Unsupported, "Unknown Type")),
+        };
+        for i in s.trim().split(',').map(|v| v.trim()) {
+            if let Ok(v) = f(i) {
+                return Ok(v);
+            }
         }
+        Err(io::Error::new(ErrorKind::Unsupported, "Unknown Type"))
     }
 }
 
